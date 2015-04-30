@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<meta charset="utf-8">
 <head>
+<meta charset="utf-8">
 	<style>
 body{
 	background-color: grey;
@@ -50,6 +50,12 @@ h1{
 		font-family: Arial;
 	}
 
+h3{
+		text-align: center;
+		font-size: 24px;
+		font-family: Arial;
+	}
+
 .button {
 	width: 6.5em;
 	height: 2em;
@@ -95,6 +101,7 @@ var path = d3.geo.path()
 
 	//legend vars
 var legend_labels = ["0", "1", "2-4", "5-9", "10-14", "15+"]
+var legend_labels_total = ["0", "1-4", "5-9", "10-24", "25-49", "50+"]
 
 //yearTotal
 var yearTotal = 106;
@@ -111,7 +118,12 @@ var div = d3.select("body").append("div")
 		//set color scaler
 var color = d3.scale.threshold()
             .domain([1,2,5,10,15,20]) 
-            .range(["#fef0d9", "#fdd49e", "#fdbb84", "#fc8d59", "#d7301f", '#990000']);
+            .range(["#edf8fb", "#bfd3e6", "#9ebcda", "#8c96c6", "#8856a7", '#810f7c']);
+		//total color scale
+var color_total = d3.scale.threshold()
+            .domain([1,5,10,25,50,105]) 
+            .range(["#edf8fb", "#bfd3e6", "#9ebcda", "#8c96c6", "#8856a7", '#810f7c']);
+			
 
 var rateById = {};
 			
@@ -159,30 +171,28 @@ queue()
 	  })
 			//fill via state count
   .style("fill", function(d) {
-    return color(rateById[d3.select(this).attr('id')]); 
+    if (yearSet == 'final'){return color_total(rateById[d3.select(this).attr('id')]);}
+	else {return color(rateById[d3.select(this).attr('id')]); }
   })
 		
 		//tooltip
   .on("mouseover", function(d) {
-    d3.select(this).transition().duration(300).style("opacity", .75);
+    d3.select(this).transition().duration(150).style('stroke-width',4.5).style("stroke", 'lightgrey');
     div.transition().duration(300)
     .style("opacity", 1)
 	
 	
-	//popup
-	d3.select('text.popup')
-	.remove()
 	
 	//popup background set
 	var poprect = svg.append('rect')
 		.attr('class', 'poprect')
 		.attr("x", 770)
 		.attr("y", 355)
-		.attr('rx', 5)
+		.attr('rx', 5)   //rounds corners
 		.attr('ry', 5)
 		.style('opacity', 0)
-		.style('fill', color(rateById[d3.select(this).attr('id')]))
-		.attr('width', 150)
+		.style("fill", d3.select(this).style('fill'))
+		.attr('width', find_len(rateById[d3.select(this).attr('id')].toString()))
 		.attr('height', 50)
 		.style('stroke', 'black')
 		.style('stroke-width', 3)
@@ -202,18 +212,18 @@ queue()
 	.style('opacity', 1);
 	
   })
-  
+      //mouseout clear
   .on("mouseout", function(d) {
     d3.select(this)
-    .transition().duration(300).style("opacity", 1);
+    .transition().duration(300).style('stroke-width',0);
     d3.select('text.popup')
 	.remove()
 	d3.select('rect.poprect')
 	.remove()
   })
-  
+         //check and set yearTotal//tooltip
   yearTotal = rateById['total'];
-  div.text(' Year : ' + yearSet + ' | ' + ' Total' + " : " + yearTotal);
+  div.text(' Year : ' + find(yearSet) + ' | ' + ' Total' + " : " + yearTotal);
 				//sets borders
    g.append("path")
       .datum(topojson.mesh(map, map.objects.states, function(a, b) { return a !== b; }))
@@ -221,8 +231,8 @@ queue()
       .attr("d", path);
   };
   
-	//set year buttons
-var buttonNames = ["2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014"]
+	//set year buttons and inital attr styles
+var buttonNames = ["2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "Total"]
 d3.select('body')
 		.append('p')
 		.selectAll('input')
@@ -234,31 +244,55 @@ d3.select('body')
 		.attr('value', function(d){return d;})
 		d3.selectAll('input.button').style('background-color', "#fef0d9")
 				.style('opacity', .8);
-		d3.select('input.button').style('background-color', '#fdd49e')
+		d3.select('input.button').style('background-color', '#9ebcda')
 			.style('opacity', .8)
-		//on button click
+			
+			
+		//on button click change year and tooltip and button colors
 		d3.selectAll('input.button').on('click', function(d) {
-			yearSet = d3.select(this).attr('value');
-			d3.selectAll('input.button').style('background-color', "#fef0d9")
+				//if else for attr value (final == total)
+			if (d3.select(this).attr('value') == 'Total'){yearSet = 'final';}
+			else{yearSet =  d3.select(this).attr('value');}
+			
+			d3.selectAll('input.button').style('background-color', "#fef0d9") 
 				.style('opacity', .8);
-			d3.select(this).style('background-color', '#fdd49e')
+			d3.select(this).style('background-color', '#9ebcda')
 			   .style('opacity', .8);
 			queue()
 				.defer(d3.json, "us.json")
 				.defer(d3.csv, "show_fin.csv")
 				.await(ready);
-			div.text(' Year : ' + yearSet + ' | ' + ' Total' + " : " + yearTotal);
+			div.text(' Year : ' + find(yearSet) + ' | ' + ' Total' + " : " + yearTotal)
+			
+			d3.selectAll('g.legend').select('text').text(function(d, i){ 
+							if (yearSet == 'final') {return legend_labels_total[i];}
+							else {return legend_labels[i];}  })
 			});
 
-		
-//Adding legend for our Choropleth
+	//sepcify '2006-2014' in place of 'final' from data
+function find(d){
+	if (d=='final')
+		{return '2006-2014';} 
+	else 
+		{return d;}
+};
+	//set length of popup rects
+function find_len(d) {
+	if (d.length == 2) {return 152}
+	else if (d.length == 1) {return 142}
+	else if (d.length == 3) {return 172}
+};	
+
+
+
+	//Adding legend for our Choropleth
   var legend = g.selectAll("g.legend")
   .data([0, 1, 2, 5, 10, 15])
   .enter().append("g")
   .attr("class", "legend");
 
   var ls_w = 20, ls_h = 20;
-
+	//set squares
   legend.append("rect")
   .attr("x", 20)
   .attr("y", function(d, i){ return height - (i*ls_h) - 2*ls_h;})
@@ -266,14 +300,132 @@ d3.select('body')
   .attr("height", ls_h)
   .style("fill", function(d, i) { return color(d); })
   .style("opacity", 1);
-
+	//set text
   legend.append("text")
   .attr("x", 50)
   .attr("y", function(d, i){ return height - (i*ls_h) - ls_h - 4;})
-  .text(function(d, i){ return legend_labels[i]; });
-		
+  .text(function(d, i){ 
+  if (yearSet == 'final') {return legend_labels_total[i];}
+  else {return legend_labels[i];}  });
+  
 
-		//comments
+ d3.select('body')
+	.append('h3')
+	.text('Total Shows per Year');
+ 
+ 
+ 
+  // Line Graph ///////////////////////////////////////////////////////////////////////////
+  
+				//set vars
+		var margin = {top: 30, right: 50, bottom: 30, left: 50};
+		var line_width = 900;
+        var line_height = 200;
+		var radius = 3;
+        var line_color = "steelblue";
+				
+		// Parse the date / time
+		var	parseDate = d3.time.format("%Y").parse;
+ 
+		// Set the ranges
+		var	x = d3.time.scale().range([0, line_width]);
+		var	y = d3.scale.linear().range([line_height, 0]);
+ 
+		// Define the axes
+		var	xAxis = d3.svg.axis().scale(x)
+			.orient("bottom").ticks(9);
+ 
+		var	yAxis = d3.svg.axis().scale(y)
+			.orient("left").ticks(5);
+ 
+		// Define the line
+		var	line = d3.svg.line()
+			.x(function(d) { return x(d.year); })
+			.y(function(d) { return y(d.count); });
+	
+    
+		// Adds the svg canvas
+		var	line_svg = d3.select("body")
+			.append("svg")
+				.attr("width", line_width + margin.left + margin.right)
+				.attr("height", line_height + margin.top + margin.bottom)
+				.attr('class', 'line')
+			.append("g")
+				.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+ 
+		// Get the data
+		d3.csv("line_total.csv", function(error, data) {
+			data.forEach(function(d) {
+				d.year = parseDate(d.year);
+				d.count = +d.count;
+			});
+ 
+			// Scale the range of the data
+			x.domain(d3.extent(data, function(d) { return d.year; }));
+			y.domain([0, d3.max(data, function(d) { return d.count; })]);
+ 
+			// Add the X Axis
+			line_svg.append("g")		
+				.attr("class", "x axis")
+				.attr("transform", "translate(0," + line_height + ")")
+				.call(xAxis);
+ 
+			// Add the Y Axis
+			line_svg.append("g")		
+				.attr("class", "y axis")
+				.call(yAxis);
+				
+				
+			// Add the line path.
+			line_svg.append("path")	
+				.datum(data)
+				.attr("class", "line")
+				.attr("d", line)
+				.attr('stroke', '#9ebcda')
+				.attr('stroke-width', 5)
+				.attr('fill', 'none');
+				
+			//add circles
+			var points = line_svg.append('g')
+				.attr('class', 'line-points');
+	
+			var popup = line_svg.append("text")
+					//append circles
+				points.selectAll('circle')
+						.data(data)
+					    .enter()
+						.append("circle")
+						.attr('id', function(d) { return d.count; })
+						.attr('cx', function(d) { return x(d.year); })
+						.attr('cy', function(d) { return y(d.count); })
+						.attr('r', 7.5)
+						.attr('fill', '#8c96c6')
+								//mouse over circles
+						.on('mouseover', function(d) {
+							var xpos = d3.select(this).attr('cx');
+							var ypos = d3.select(this).attr('cy');
+							
+								//hover tooltip
+							d3.select(this).style('opacity', .7)
+							popup.attr("class", "hovertiptext")
+							.attr("x", xpos)
+							.attr("y", ypos)
+							.style('opacity', 0)
+							.style('font-size', 24)
+							.style('font-family', 'arial')
+						popup.text(d3.select(this).attr('id'))
+								.style('opacity', 1);
+						})
+						
+							//mouseout
+						.on('mouseout', function(d) {
+							d3.select(this).style('opacity', 1)
+							popup.style('opacity', 0);
+						});
+		});
+		
+		
+		//comments///////
 d3.select('body')
 	.append('p')
 	.append('text')
@@ -285,5 +437,7 @@ d3.select('body')
 	.style('font-family', 'Arial')
 	.attr("xlink:href", 'http://www.tdwpband.com');
 
+
 </script>
 </body>
+</html>
